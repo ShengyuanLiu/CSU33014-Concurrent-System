@@ -361,20 +361,28 @@ void multichannel_conv_dense(float ** * image, float ** ** kernels,
             }
         }
     }
-    __m128 vec_tmp;
+    __m128 vec_tmp= _mm_setzero_ps();
     __m128 vec_output;
+    __m128 vec_image;
+    __m128 vec_kernel;
+
     int wx;
     int hy;
     for (m = 0; m < nkernels; m++) {
-        for (w = 0; w < width; w++) {
+        for (w = 0; w < width; w++) { 
             for (h = 0; h < height; h++) {
                 for (x = 0; x < kernel_order; x++) {
                     wx=w+x;
                     for (y = 0; y < kernel_order; y++) {
                         hy =h+y;
-                        for (c = 0; c < nchannels; c++) {
-                            output[m][h][w] += image[wx][hy][c] * kernels[x][y][m][c];
+                        for (c = 0; c < nchannels; c+=4) {
+                            vec_image = _mm_load_ps(&(image[wx][hy][c]));
+                            vec_kernel = _mm_load_ps(&(kernels[x][y][m][c]));
+                            vec_tmp += _mm_mul_ps(vec_image, vec_kernel);
                         }
+                        vec_tmp = _mm_hadd_ps(vec_tmp, vec_tmp);
+                        vec_tmp = _mm_add_ps(vec_tmp,vec_tmp);
+                        output[m][h][w] +=_mm_cvt_ss2si(vec_tmp);
                     }
                 }
             }
