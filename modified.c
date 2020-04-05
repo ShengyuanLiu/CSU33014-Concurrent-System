@@ -102,7 +102,7 @@ struct sparse_matrix * sparse_matrix_dense2sparse(float ** matrix, int nkernels,
     __m128 zero = _mm_setzero_ps();
     int mask = 0;
 
-    #pragma omp for
+    
     for (i = 0; i < nkernels; i++) {
         for (j = 0; j < nchannels; j+=4) {
             __m128 value = _mm_load_ps(&matrix[i][j]);
@@ -118,7 +118,7 @@ struct sparse_matrix * sparse_matrix_dense2sparse(float ** matrix, int nkernels,
     // now copy the values from the dense matrix to the sparse matrix
     nvalues = 0;
     // no parallel for 
-    #pragma omp for
+    
     for (i = 0; i < nkernels; i++) {
         result -> kernel_starts[i] = nvalues;
         for (j = 0; j < nchannels; j++) {
@@ -146,7 +146,7 @@ struct sparse_matrix ** * kernels_dense2sparse(float ** ** kernels, int kernel_o
     temp = malloc(sizeof(struct sparse_matrix * ) * kernel_order * kernel_order);
 
     // no parallel for
-    #pragma omp for
+    
     for (i = 0; i < kernel_order; i++) {
         result[i] = & (temp[i * kernel_order]);
         for (j = 0; j < kernel_order; j++) {
@@ -202,7 +202,7 @@ float ** ** new_empty_4d_matrix(int dim0, int dim1, int dim2, int dim3) {
     int idim123;
     int jdim2;
     int jdim23;
-    #pragma omp for
+    
     for (i = 0; i < dim0; i++) {
         result[i] = & (mat1[i * dim1]);
         idim12=i*dim12;
@@ -243,7 +243,7 @@ float ** ** copy_4d_matrix(float ** ** source_matrix, int dim0,
     float ** ** result = new_empty_4d_matrix(dim0, dim1, dim2, dim3);
 
     __m128 value;
-    #pragma omp for
+    
     for (i = 0; i < dim0; i++) {
         for (j = 0; j < dim1; j++) {
             for (k = 0; k < dim2; k++) {
@@ -278,7 +278,7 @@ float ** ** gen_random_4d_matrix(int dim0, int dim1, int dim2, int dim3, int nz_
     //const int bias = 1 << 16; // 2^16
     float offset = 0.0;
 
-    #pragma omp for
+    
     for (i = 0; i < dim0; i++) {
         for (j = 0; j < dim1; j++) {
             for (k = 0; k < dim2; k++) {
@@ -333,7 +333,7 @@ void check_result(float ** * result, float ** * control,
 
     DEBUGGING(printf("SAD\n"));
 
-    #pragma omp for
+    
     for (i = 0; i < dim0; i++) {
         for (j = 0; j < dim1; j++) {
             for (k = 0; k < dim2; k++) {
@@ -359,7 +359,7 @@ void multichannel_conv_dense(float ** * image, float ** ** kernels,
     int h, w, x, y, c, m;
 
     // initialize the output matrix to zero
-    #pragma omp for
+    
     __m128 tmp = _mm_setzero_ps(); 
     for (m = 0; m < nkernels; m++) {
         for (h = 0; h < height; h++) {
@@ -375,7 +375,7 @@ void multichannel_conv_dense(float ** * image, float ** ** kernels,
 
     int wx;
     int hy;
-    #pragma omp for
+    
     for (m = 0; m < nkernels; m++) {
         for (w = 0; w < width; w++) { 
             for (h = 0; h < height; h++) {
@@ -407,7 +407,7 @@ void multichannel_conv_sparse(float ** * image, struct sparse_matrix ** * kernel
 
     // initialize the output matrix to zero
 
-    #pragma omp for
+    
     __m128 tmp = _mm_setzero_ps();
     for (m = 0; m < nkernels; m++) {
         for (h = 0; h < height; h++) {
@@ -420,7 +420,7 @@ void multichannel_conv_sparse(float ** * image, struct sparse_matrix ** * kernel
     DEBUGGING(fprintf(stderr, "w=%d, h=%d, c=%d\n", w, h, c));
 
     // now compute multichannel, multikernel convolution
-    #pragma omp for
+    
     for (w = 0; w < width; w++) {
         for (h = 0; h < height; h++) {
             double sum = 0.0;
