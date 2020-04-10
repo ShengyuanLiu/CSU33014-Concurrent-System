@@ -368,20 +368,43 @@ void multichannel_conv_sparse(float ** * image, struct sparse_matrix ** * kernel
     float tmp1[4] = {0,0,0,0};
     float tmp2[4] = {0,0,0,0};
     float tmp3[4] = {0,0,0,0};
-    __m128 value_v ;
+    float tmp4[4] = {0,0,0,0};
+    float tmp5[4] = {0,0,0,0};
+    float tmp6[4] = {0,0,0,0};
+    float tmp7[4] = {0,0,0,0};
     __m128 mul0 ;
     __m128 mul1 ;
     __m128 mul2 ;
     __m128 mul3 ;
+    __m128 mul4 ;
+    __m128 mul5 ;
+    __m128 mul6 ;
+    __m128 mul7 ;
     __m128 row0 ;
     __m128 row1 ;
     __m128 row2 ;
     __m128 row3 ;
+    __m128 row4 ;
+    __m128 row5 ;
+    __m128 row6 ;
+    __m128 row7 ;
+    __m128 value_v ;
     struct sparse_matrix * kernel;
+    
     int this_c;
-    #pragma omp parallel for private(x,y,kernel,m,index,this_c,value_v,w,h,tmp0,tmp1,tmp2,tmp3,mul0,mul1,mul2,mul3,row0,row1,row2,row3)
-    for (w = 0; w < width; w+=4) {
-    for (h = 0; h < height; h+=2) {
+    int h1;
+    int h2;
+    int h3;
+    int w1;
+    int w2;
+    int w3;
+    int w4;
+    int w5;
+    int w6;
+    int w7;
+    #pragma omp parallel for private(w,h,x,y,m,index,tmp0,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,mul0,mul1,mul2,mul3,mul4,mul5,mul6,mul7,row0,row1,row2,row3,row4,row5,row6,row7,value_v,kernel,this_c,w1,w2,w3,w4,w5,w6,w7,h1,h2,h3)
+    for (w = 0; w < width; w+=8) {
+    for (h = 0; h < height; h+=4) {
     for (x = 0; x < kernel_order; x++) {
         for (y = 0; y < kernel_order; y++) {
             kernel = kernels[x][y];
@@ -390,46 +413,88 @@ void multichannel_conv_sparse(float ** * image, struct sparse_matrix ** * kernel
                     this_c = kernel -> channel_numbers[index];
                     assert((this_c >= 0) && (this_c < nchannels));
                     value_v = _mm_set1_ps(kernel -> values[index]);
+
+
+                    row0 =  _mm_setr_ps(image[w + x][h + y][this_c],image[w + x][h + y+1][this_c],image[w + x][h + y+2][this_c],image[w + x][h + y+3][this_c]);
+                    row1 =  _mm_setr_ps(image[w + x+1][h + y][this_c],image[w + x+1][h + y+1][this_c],image[w + x+1][h + y+2][this_c],image[w + x+1][h + y+3][this_c]);
+                    row2 =  _mm_setr_ps(image[w + x+2][h + y][this_c],image[w + x+2][h + y+1][this_c],image[w + x+2][h + y+2][this_c],image[w + x+2][h + y+3][this_c]);    
+                    row3 =  _mm_setr_ps(image[w + x+3][h + y][this_c],image[w + x+3][h + y+1][this_c],image[w + x+3][h + y+2][this_c],image[w + x+3][h + y+3][this_c]);
+                    row4 =  _mm_setr_ps(image[w + x+4][h + y][this_c],image[w + x+4][h + y+1][this_c],image[w + x+4][h + y+2][this_c],image[w + x+4][h + y+3][this_c]);
+                    row5 =  _mm_setr_ps(image[w + x+5][h + y][this_c],image[w + x+5][h + y+1][this_c],image[w + x+5][h + y+2][this_c],image[w + x+5][h + y+3][this_c]);
+                    row6 =  _mm_setr_ps(image[w + x+6][h + y][this_c],image[w + x+6][h + y+1][this_c],image[w + x+6][h + y+2][this_c],image[w + x+6][h + y+3][this_c]);
+                    row7 =  _mm_setr_ps(image[w + x+7][h + y][this_c],image[w + x+7][h + y+1][this_c],image[w + x+7][h + y+2][this_c],image[w + x+7][h + y+3][this_c]);
+
                     
-                    row0 =  _mm_setr_ps(image[w + x][h + y][this_c],image[w + x+1][h + y][this_c],image[w + x+2][h + y][this_c],image[w + x+3][h + y][this_c]);
-                    
-                    row1 =  _mm_setr_ps(image[w + x][h + y+1][this_c],image[w + x+1][h + y+1][this_c],image[w + x+2][h + y+1][this_c],image[w + x+3][h + y+1][this_c]);
-                    /*
-                    row2 =  _mm_setr_ps(image[w + x][h + y+2][this_c],image[w + x+1][h + y+2][this_c],image[w + x+2][h + y+2][this_c],image[w + x+3][h + y+2][this_c]);    
-                    row0 =  _mm_setr_ps(image[w + x][h + y+3][this_c],image[w + x+1][h + y+3][this_c],image[w + x+2][h + y+3][this_c],image[w + x+3][h + y+3][this_c]);
-                    */
-                     
+                
                     mul0 = _mm_mul_ps(row0,value_v);
                     mul1 = _mm_mul_ps(row1,value_v);
-                    /*
                     mul2 = _mm_mul_ps(row2,value_v);
                     mul3 = _mm_mul_ps(row3,value_v);
-                    */
+                    mul4 = _mm_mul_ps(row4,value_v);
+                    mul5 = _mm_mul_ps(row5,value_v);
+                    mul6 = _mm_mul_ps(row6,value_v);
+                    mul7 = _mm_mul_ps(row7,value_v);
+                    
+                    h1 = h+1;
+                    h2 = h+2;
+                    h3 = h+3;
+                    w1 = w+1;
+                    w2 = w+2;
+                    w3 = w+3;
+                    w4 = w+4;
+                    w5 = w+5;
+                    w6 = w+6;
+                    w7 = w+7;
+
                     _mm_store_ps(&(tmp0[0]),mul0);
                     output[m][h][w] += tmp0[0];
-                    output[m][h][w+1] += tmp0[1];
-                    output[m][h][w+2] += tmp0[2];
-                    output[m][h][w+3] += tmp0[3];
+                    output[m][h1][w] += tmp0[1];
+                    output[m][h2][w] += tmp0[2];
+                    output[m][h3][w] += tmp0[3];
                     
                     _mm_store_ps(&(tmp1[0]),mul1);
-                    output[m][h+1][w] += tmp1[0];
-                    output[m][h+1][w+1] += tmp1[1];
-                    output[m][h+1][w+2] += tmp1[2];
-                    output[m][h+1][w+3] += tmp1[3];
+                    output[m][h][w1] += tmp1[0];
+                    output[m][h1][w1] += tmp1[1];
+                    output[m][h2][w1] += tmp1[2];
+                    output[m][h3][w1] += tmp1[3];
 
-                    /*
+                    
                     _mm_store_ps(&(tmp2[0]),mul2);
-                    output[m][h+2][w] += tmp2[0];
-                    output[m][h+2][w+1] += tmp2[1];
-                    output[m][h+2][w+2] += tmp2[2];
-                    output[m][h+2][w+3] += tmp2[3];
+                    output[m][h][w2] += tmp2[0];
+                    output[m][h1][w2] += tmp2[1];
+                    output[m][h2][w2] += tmp2[2];
+                    output[m][h3][w2] += tmp2[3];
 
                     _mm_store_ps(&(tmp3[0]),mul3);
-                    output[m][h+3][w] += tmp3[0];
-                    output[m][h+3][w+1] += tmp3[1];
-                    output[m][h+3][w+2] += tmp3[2];
-                    output[m][h+3][w+3] += tmp3[3];
-                    */
+                    output[m][h][w3] += tmp3[0];
+                    output[m][h1][w3] += tmp3[1];
+                    output[m][h2][w3] += tmp3[2];
+                    output[m][h3][w3] += tmp3[3];
+
+                    _mm_store_ps(&(tmp4[0]),mul4);
+                    output[m][h][w4] += tmp4[0];
+                    output[m][h1][w4] += tmp4[1];
+                    output[m][h2][w4] += tmp4[2];
+                    output[m][h3][w4] += tmp4[3];
+
+                    _mm_store_ps(&(tmp5[0]),mul5);
+                    output[m][h][w5] += tmp5[0];
+                    output[m][h1][w5] += tmp5[1];
+                    output[m][h2][w5] += tmp5[2];
+                    output[m][h3][w5] += tmp5[3];
+
+                    _mm_store_ps(&(tmp6[0]),mul6);
+                    output[m][h][w6] += tmp6[0];
+                    output[m][h1][w6] += tmp6[1];
+                    output[m][h2][w6] += tmp6[2];
+                    output[m][h3][w6] += tmp6[3];
+
+                    _mm_store_ps(&(tmp7[0]),mul7);
+                    output[m][h][w7] += tmp7[0];
+                    output[m][h1][w7] += tmp7[1];
+                    output[m][h2][w7] += tmp7[2];
+                    output[m][h3][w7] += tmp7[3];
+                    
                 }
             }
         }
