@@ -410,46 +410,79 @@ void multichannel_conv_sparse(float *** image, struct sparse_matrix *** kernels,
 void team_conv_sparse(float *** image, struct sparse_matrix *** kernels,
 		       float *** output, int width, int height,
 		       int nchannels, int nkernels, int kernel_order) {
-             int h, w, x, y, c, m;
-             //use omp to speed the program
-             __m128d tempSum1, tempSum2, a, result1, result2, add1, add2;
-             #pragma omp parallel for if (nkernels > 400) private(w, h, m, c, x, y, tempSum1, tempSum2, a, result1, result2, add1, add2) shared(output, image, kernels) collapse(3)
-           	for ( m = 0; m < nkernels; m+=2 ) {
-           	  for ( w = 0; w < width; w++ ) {
-           	    for ( h = 0; h < height; h++ ) {
-           			  tempSum1 = _mm_set1_pd(0.0);
-           			  tempSum2 = _mm_set1_pd(0.0);
-           		  	for ( c = 0; c < nchannels; c+=2 ) {
-           			    for ( x = 0; x < kernel_order; x++) {
-           				    for ( y = 0; y < kernel_order; y++) {
-           				      a = _mm_setr_pd((double)image[w+x][h+y][c],
-           						                  (double)image[w+x][h+y][c+1]);
 
-           	  			    result1 = _mm_setr_pd((double)kernels[m][c][x][y],
-           									             (double)kernels[m][c+1][x][y]);
+               int h, w, x, y, c, m;
 
-           				      add1 = _mm_mul_pd(a, result1);
-           				      tempSum1 = _mm_add_pd(tempSum1, add1);
+               // OpenMP parallelising the for loops
+#pragma omp parallel for if(nkernels>30) collapse(3) schedule(dynamic, 1) shared(h, w, x, y, c, m)
+               for ( m = 0; m < nkernels; m+=8 ) //no of kernels
+               {
+                 for ( w = 0; w < width; w++ )
+                 {
+                   for ( h = 0; h < height; h++ )
+                   {
+                     //initialising to 0
+                     __m128d sum0 = _mm_set1_pd(0.0);
+                     __m128d sum1 = _mm_set1_pd(0.0);
+                     __m128d sum2 = _mm_set1_pd(0.0);
+                     __m128d sum3 = _mm_set1_pd(0.0);
 
-           				      result2 = _mm_setr_pd((double)kernels[m+1][c][x][y],
-           					 				             (double)kernels[m+1][c+1][x][y]);
-           				      add2 = _mm_mul_pd(a, result2);
-           				      tempSum2 = _mm_add_pd(tempSum2, add2);
-           				    }
-           			    }
-           			  }
-                  // set up the temp values
-           		    double temp[2] = {0.0, 0.0};
-           		    _mm_store_pd(temp, tempSum1);
-           		    double count = temp[0] + temp[1];
-           		    output[m][w][h] = count;
+                     for ( c = 0; c < nchannels; c+=2 )
+                     {
+                     //size, if 3= 3x3 matrix
+                       for ( y = 0; y < kernel_order; y++ )
+                       {
+                         for  ( x = 0; x < kernel_order; x++)
+                         {
+                           //image is calculated for both values of c
+                           __m128d imageCalc = _mm_set1_pd((float)image[w+x][h+y][c]);
+                           __m128d imageCalc1 = _mm_set1_pd((float)image[w+x][h+y][c+1]);
 
-           		    _mm_store_pd(temp, tempSum2);
-           		    count = temp[0] + temp[1];
-           		    output[m+1][w][h] = count;
+
+                           __m128d struct sparse_matrix * kerenl00= kernels[y][x];
+
+                           //vectorised look ahead
+                           __m128d kernel0 = _mm_setr_pd((double)kernels[m][c]kerenl00,(double) kernels[m+1][c]kerenl00);
+                           __m128d kernel1 = _mm_setr_pd((double)kernels[m+2][c]kerenl00,(double) kernels[m+3][c]kerenl00);
+                           __m128d kernel2 = _mm_setr_pd((double)kernels[m+4][c]kerenl00,(double) kernels[m+5][c]kerenl00);
+                           __m128d kernel3 = _mm_setr_pd((double)kernels[m+6][c]kerenl00,(double) kernels[m+7][c]kerenl00);
+
+
+                           // each vector holds 2 doubles
+                           sum0 = _mm_add_pd(sum0, _mm_mul_pd(imageCalc,kernel0));
+                           sum1 = _mm_add_pd(sum1, _mm_mul_pd(imageCalc,kernel1));
+                           sum2 = _mm_add_pd(sum2, _mm_mul_pd(imageCalc,kernel2));
+                           sum3 = _mm_add_pd(sum3, _mm_mul_pd(imageCalc,kernel3));
+
+
+                           // code duplicated to get a second round of sum calculations
+                           __m128d kernel01 = _mm_setr_pd((double)kernels[m][c+1]kerenl00,(double) kernels[m+1][c+1]kerenl00);
+                           __m128d kernel11 = _mm_setr_pd((double)kernels[m+2][c+1]kerenl00],(double) kernels[m+3][c+1]kerenl00);
+                           __m128d kernel21 = _mm_setr_pd((double)kernels[m+4][c+1]kerenl00,(double) kernels[m+5][c+1]kerenl00);
+                           __m128d kernel31 = _mm_setr_pd((double)kernels[m+6][c+1]kerenl00,(double) kernels[m+7][c+1]kerenl00);
+
+                           sum0 = _mm_add_pd(sum0, _mm_mul_pd(imageCalc1,kernel01));
+                           sum1 = _mm_add_pd(sum1, _mm_mul_pd(imageCalc1,kernel11));
+                           sum2 = _mm_add_pd(sum2, _mm_mul_pd(imageCalc1,kernel21));
+                           sum3 = _mm_add_pd(sum3, _mm_mul_pd(imageCalc1,kernel31));
+
+
+                         }
+                       }
+                     }
+                     // sum[0] accesses the first element of sum vector and sum[1] the second
+                     output[m][w][h] =  sum0[0];
+                     output[m+1][w][h] = sum0[1];
+                     output[m+2][w][h] = sum1[0];
+                     output[m+3][w][h] = sum1[1];
+                     output[m+4][w][h] = sum2[0];
+                     output[m+5][w][h] = sum2[1];
+                     output[m+6][w][h] = sum3[0];
+                     output[m+7][w][h] = sum3[1];
+
+                   }
                  }
-           	  }
-           	}
+               }
 
 }
 

@@ -119,10 +119,10 @@ struct sparse_matrix * sparse_matrix_dense2sparse(float ** matrix, int nkernels,
 }
 
 struct sparse_matrix ** * kernels_dense2sparse(float ** ** kernels, int kernel_order, int nkernels, int nchannels) {
-
+ 
     int i, j;
-    struct sparse_matrix ** * result;
-    struct sparse_matrix ** temp;
+    struct sparse_matrix ** * result; //triple pointer pointer to pointer to pointer
+    struct sparse_matrix * * temp;//double pointer <- pointer to pointer 
 
     result = malloc(sizeof(struct sparse_matrix ** ) * kernel_order);
     temp = malloc(sizeof(struct sparse_matrix * ) * kernel_order * kernel_order);

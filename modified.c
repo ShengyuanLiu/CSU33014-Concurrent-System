@@ -389,7 +389,7 @@ void multichannel_conv_dense(float ** * image, float ** ** kernels,
                             vec_tmp += _mm_mul_ps(vec_image, vec_kernel);
                         }
                         vec_tmp = _mm_hadd_ps(vec_tmp, vec_tmp);
-                        vec_tmp = _mm_add_ps(vec_tmp,vec_tmp);
+                        vec_tmp = _mm_hadd_ps(vec_tmp,vec_tmp);
                         output[m][h][w] +=_mm_cvt_ss2si(vec_tmp);
                     }
                 }
@@ -441,13 +441,109 @@ void multichannel_conv_sparse(float ** * image, struct sparse_matrix ** * kernel
     } // w
 }
 
-/* the fast version of sparse convolution written by the team */
 void team_conv_sparse(float ** * image, struct sparse_matrix ** * kernels,
     float ** * output, int width, int height,
     int nchannels, int nkernels, int kernel_order) {
-    multichannel_conv_sparse(image, kernels, output, width, height,
-        nchannels, nkernels, kernel_order);
+   int h, w, x, y, c, m, index;
+   //float value;
+
+    // initialize the output matrix to zero
+
+    
+    __m128 tmp = _mm_setzero_ps();
+    for (m = 0; m < nkernels; m++) {
+        for (h = 0; h < height; h++) {
+            for (w = 0; w < width; w+=4) {
+                _mm_store_ps(&(output[m][h][w]),tmp);
+            }
+        }
+    }
+
+    DEBUGGING(fprintf(stderr, "w=%d, h=%d, c=%d\n", w, h, c));
+    /*
+    struct sparse_matrix {
+        int nkernels;
+        int nchannels;
+        int non_zeros;
+        int * kernel_starts;
+        float * values;
+        int * channel_numbers;
+};
+
+
+    */
+    // now compute multichannel, multikernel convolution
+    float tmp0[4] = {0,0,0,0};
+    float tmp1[4] = {0,0,0,0};
+    float tmp2[4] = {0,0,0,0};
+    float tmp3[4] = {0,0,0,0};
+    __m128 value_v ;
+    __m128 mul0 ;
+    __m128 mul1 ;
+    __m128 mul2 ;
+    __m128 mul3 ;
+    __m128 row0 ;
+    __m128 row1 ;
+    __m128 row2 ;
+    __m128 row3 ;
+    struct sparse_matrix * kernel;
+    int this_c;
+    #pragma omp parallel for private(x,y,kernel,m,index,this_c,value_v,w,h,tmp0,tmp1,tmp2,tmp3,mul0,mul1,mul2,mul3,row0,row1,row2,row3)
+    for (w = 0; w < width; w++) {
+    for (h = 0; h < height; h++) {
+    for (x = 0; x < kernel_order; x++) {
+        for (y = 0; y < kernel_order; y++) {
+            kernel = kernels[x][y];
+            for (m = 0; m < nkernels; m++) {
+                for (index = kernel -> kernel_starts[m]; index < kernel -> kernel_starts[m + 1]; index++) {
+                    this_c = kernel -> channel_numbers[index];
+                    assert((this_c >= 0) && (this_c < nchannels));
+                    value_v = _mm_set1_ps(kernel -> values[index]);
+                    
+                    row0 =  _mm_setr_ps(image[w + x][h + y][this_c],image[w + x+1][h + y][this_c],image[w + x+2][h + y][this_c],image[w + x+3][h + y][this_c]);
+                    /*row1 =  _mm_setr_ps(image[w + x][h + y+1][this_c],image[w + x+1][h + y+1][this_c],image[w + x+2][h + y+1][this_c],image[w + x+3][h + y+1][this_c]);
+                    row2 =  _mm_setr_ps(image[w + x][h + y+2][this_c],image[w + x+1][h + y+2][this_c],image[w + x+2][h + y+2][this_c],image[w + x+3][h + y+2][this_c]);    
+                    row0 =  _mm_setr_ps(image[w + x][h + y+3][this_c],image[w + x+1][h + y+3][this_c],image[w + x+2][h + y+3][this_c],image[w + x+3][h + y+3][this_c]);
+                    */
+                     
+                    mul0 = _mm_mul_ps(row0,value_v);
+                    /*
+                    mul1 = _mm_mul_ps(row1,value_v);
+                    mul2 = _mm_mul_ps(row2,value_v);
+                    mul3 = _mm_mul_ps(row3,value_v);
+                    */
+                    _mm_store_ps(&(tmp0[0]),mul0);
+                    output[m][h][w] += tmp0[0];
+                    output[m][h][w+1] += tmp0[1];
+                    output[m][h][w+2] += tmp0[2];
+                    output[m][h][w+3] += tmp0[3];
+                    /*
+                    _mm_store_ps(&(tmp1[0]),mul1);
+                    output[m][h+1][w] += tmp1[0];
+                    output[m][h+1][w+1] += tmp1[1];
+                    output[m][h+1][w+2] += tmp1[2];
+                    output[m][h+1][w+3] += tmp1[3];
+
+
+                    _mm_store_ps(&(tmp2[0]),mul2);
+                    output[m][h+2][w] += tmp2[0];
+                    output[m][h+2][w+1] += tmp2[1];
+                    output[m][h+2][w+2] += tmp2[2];
+                    output[m][h+2][w+3] += tmp2[3];
+
+                    _mm_store_ps(&(tmp3[0]),mul3);
+                    output[m][h+3][w] += tmp3[0];
+                    output[m][h+3][w+1] += tmp3[1];
+                    output[m][h+3][w+2] += tmp3[2];
+                    output[m][h+3][w+3] += tmp3[3];
+                    */
+                }
+            }
+        }
+   }
 }
+    }
+    }
 
 int main(int argc, char ** argv) {
     //float image[W][H][C];
