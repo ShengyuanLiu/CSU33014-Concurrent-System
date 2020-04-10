@@ -438,6 +438,7 @@ void multichannel_conv_sparse(float ** * image, struct sparse_matrix ** * kernel
                     h1 = h+1;
                     h2 = h+2;
                     h3 = h+3;
+                    
                     w1 = w+1;
                     w2 = w+2;
                     w3 = w+3;

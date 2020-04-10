@@ -35,8 +35,8 @@
 #include <math.h>
 
 #include <stdint.h>
-#include<x86intrin.h>
 
+#include<x86intrin.h>
 /* the following two definitions of DEBUGGING control whether or not
    debugging information is written out. To put the program into
    debugging mode, uncomment the following line: */
@@ -80,45 +80,28 @@ struct sparse_matrix * sparse_matrix_new(int nkernels, int nchannels, int nvalue
     return result;
 }
 
-/* Function to get no of set bits in binary 
-   representation of positive integer n */
-unsigned int countSetBits(unsigned int n) 
-{ 
-    unsigned int count = 0; 
-    while (n) { 
-        count += n & 1; 
-        n >>= 1; 
-    } 
-    return count; 
-} 
 // create a copy of a dense matrix in a new sparse matrix
 struct sparse_matrix * sparse_matrix_dense2sparse(float ** matrix, int nkernels, int nchannels) {
     int i, j;
     int non_zeros = 0;
     struct sparse_matrix * result;
     int nvalues;
-    __m128 tmp = _mm_setzero_ps();
-    // find the number of non-zero values in the dense matrix
-    __m128 zero = _mm_setzero_ps();
-    int mask = 0;
 
-    
+    // find the number of non-zero values in the dense matrix
     for (i = 0; i < nkernels; i++) {
-        for (j = 0; j < nchannels; j+=4) {
-            __m128 value = _mm_load_ps(&matrix[i][j]);
-            __m128 result = _mm_cmpneq_ps (value, zero);
-            mask = _mm_movemask_ps(result);
-            non_zeros= non_zeros + countSetBits(mask);
+        for (j = 0; j < nchannels; j++) {
+            if (abs(matrix[i][j]) != 0.0) {
+                non_zeros++;
+            }
         }
     }
 
+    
     // create the new unpopulated sparse matrix
     result = sparse_matrix_new(nkernels, nchannels, non_zeros);
 
     // now copy the values from the dense matrix to the sparse matrix
     nvalues = 0;
-    // no parallel for 
-    
     for (i = 0; i < nkernels; i++) {
         result -> kernel_starts[i] = nvalues;
         for (j = 0; j < nchannels; j++) {
@@ -137,16 +120,14 @@ struct sparse_matrix * sparse_matrix_dense2sparse(float ** matrix, int nkernels,
 }
 
 struct sparse_matrix ** * kernels_dense2sparse(float ** ** kernels, int kernel_order, int nkernels, int nchannels) {
-
+ 
     int i, j;
-    struct sparse_matrix ** * result;
-    struct sparse_matrix ** temp;
+    struct sparse_matrix ** * result; //triple pointer pointer to pointer to pointer
+    struct sparse_matrix * * temp;//double pointer <- pointer to pointer 
 
     result = malloc(sizeof(struct sparse_matrix ** ) * kernel_order);
     temp = malloc(sizeof(struct sparse_matrix * ) * kernel_order * kernel_order);
 
-    // no parallel for
-    
     for (i = 0; i < kernel_order; i++) {
         result[i] = & (temp[i * kernel_order]);
         for (j = 0; j < kernel_order; j++) {
@@ -161,7 +142,6 @@ struct sparse_matrix ** * kernels_dense2sparse(float ** ** kernels, int kernel_o
 void write_out(float ** * a, int dim0, int dim1, int dim2) {
     int i, j, k;
 
-     
     for (i = 0; i < dim0; i++) {
         printf("Outer dimension number %d\n", i);
         for (j = 0; j < dim1; j++) {
@@ -196,26 +176,17 @@ float ** ** new_empty_4d_matrix(int dim0, int dim1, int dim2, int dim3) {
     assert(mat2 != NULL);
     assert(mat3 != NULL);
 
-    int dim12 = dim1 * dim2;
-    int dim123 = dim12 * dim3;
-    int idim12;
-    int idim123;
-    int jdim2;
-    int jdim23;
-    
+
     for (i = 0; i < dim0; i++) {
         result[i] = & (mat1[i * dim1]);
-        idim12=i*dim12;
-        idim123=idim12*dim3;
         for (j = 0; j < dim1; j++) {
-            jdim2 = j * dim2;
-            result[i][j] = & (mat2[idim12 + jdim2]);
-            jdim23 =jdim2*dim3;
+            result[i][j] = & (mat2[i * dim1 * dim2 + j * dim2]);
             for (k = 0; k < dim2; k++) {
-                result[i][j][k] = & (mat3[idim123 + jdim23 + k * dim3]);
+                result[i][j][k] = & (mat3[i * dim1 * dim2 * dim3 + j * dim2 * dim3 + k * dim3]);
             }
         }
     }
+
     return result;
 }
 
@@ -236,20 +207,16 @@ float ** * new_empty_3d_matrix(int dim0, int dim1, int dim2) {
 }
 
 /* take a copy of the matrix and return in a newly allocated matrix */
-
 float ** ** copy_4d_matrix(float ** ** source_matrix, int dim0,
     int dim1, int dim2, int dim3) {
     int i, j, k, l;
     float ** ** result = new_empty_4d_matrix(dim0, dim1, dim2, dim3);
 
-    __m128 value;
-    
     for (i = 0; i < dim0; i++) {
         for (j = 0; j < dim1; j++) {
             for (k = 0; k < dim2; k++) {
-                for (l = 0; l < dim3; l+=4) {
-                    value = _mm_load_ps(&(source_matrix[i][j][k][l]));
-                    _mm_store_ps(&(result[i][j][k][l]),value);
+                for (l = 0; l < dim3; l++) {
+                    result[i][j][k][l] = source_matrix[i][j][k][l];
                 }
             }
         }
@@ -277,8 +244,6 @@ float ** ** gen_random_4d_matrix(int dim0, int dim1, int dim2, int dim3, int nz_
     const int range = 1 << 10; // 2^10
     //const int bias = 1 << 16; // 2^16
     float offset = 0.0;
-
-    
     for (i = 0; i < dim0; i++) {
         for (j = 0; j < dim1; j++) {
             for (k = 0; k < dim2; k++) {
@@ -333,7 +298,6 @@ void check_result(float ** * result, float ** * control,
 
     DEBUGGING(printf("SAD\n"));
 
-    
     for (i = 0; i < dim0; i++) {
         for (j = 0; j < dim1; j++) {
             for (k = 0; k < dim2; k++) {
@@ -359,38 +323,22 @@ void multichannel_conv_dense(float ** * image, float ** ** kernels,
     int h, w, x, y, c, m;
 
     // initialize the output matrix to zero
-    
-    __m128 tmp = _mm_setzero_ps(); 
     for (m = 0; m < nkernels; m++) {
         for (h = 0; h < height; h++) {
-            for (w = 0; w < width; w+=4) {
-                _mm_store_ps(&(output[m][h][w]),tmp);
+            for (w = 0; w < width; w++) {
+                output[m][h][w] = 0.0;
             }
         }
     }
-    __m128 vec_tmp= _mm_setzero_ps();
-    __m128 vec_output;
-    __m128 vec_image;
-    __m128 vec_kernel;
 
-    int wx;
-    int hy;
-    
     for (m = 0; m < nkernels; m++) {
-        for (w = 0; w < width; w++) { 
+        for (w = 0; w < width; w++) {
             for (h = 0; h < height; h++) {
                 for (x = 0; x < kernel_order; x++) {
-                    wx=w+x;
                     for (y = 0; y < kernel_order; y++) {
-                        hy =h+y;
-                        for (c = 0; c < nchannels; c+=4) {
-                            vec_image = _mm_load_ps(&(image[wx][hy][c]));
-                            vec_kernel = _mm_load_ps(&(kernels[x][y][m][c]));
-                            vec_tmp += _mm_mul_ps(vec_image, vec_kernel);
+                        for (c = 0; c < nchannels; c++) {
+                            output[m][h][w] += image[w + x][h + y][c] * kernels[x][y][m][c];
                         }
-                        vec_tmp = _mm_hadd_ps(vec_tmp, vec_tmp);
-                        vec_tmp = _mm_hadd_ps(vec_tmp,vec_tmp);
-                        output[m][h][w] +=_mm_cvt_ss2si(vec_tmp);
                     }
                 }
             }
@@ -405,9 +353,6 @@ void multichannel_conv_sparse(float ** * image, struct sparse_matrix ** * kernel
     int h, w, x, y, c, m, index;
     float value;
 
-    // initialize the output matrix to zero
-
-    
     __m128 tmp = _mm_setzero_ps();
     for (m = 0; m < nkernels; m++) {
         for (h = 0; h < height; h++) {
@@ -419,65 +364,10 @@ void multichannel_conv_sparse(float ** * image, struct sparse_matrix ** * kernel
 
     DEBUGGING(fprintf(stderr, "w=%d, h=%d, c=%d\n", w, h, c));
 
-    // now compute multichannel, multikernel convolution
-    
-    for (w = 0; w < width; w++) {
-        for (h = 0; h < height; h++) {
-            double sum = 0.0;
-            for (x = 0; x < kernel_order; x++) {
-                for (y = 0; y < kernel_order; y++) {
-                    struct sparse_matrix * kernel = kernels[x][y];
-                    for (m = 0; m < nkernels; m++) {
-                        for (index = kernel -> kernel_starts[m]; index < kernel -> kernel_starts[m + 1]; index++) {
-                            int this_c = kernel -> channel_numbers[index];
-                            assert((this_c >= 0) && (this_c < nchannels));
-                            value = kernel -> values[index];
-                            output[m][h][w] += image[w + x][h + y][this_c] * value;
-                        }
-                    } // m
-                } // y
-            } // x
-        } // h
-    } // w
-}
-
-void team_conv_sparse(float ** * image, struct sparse_matrix ** * kernels,
-    float ** * output, int width, int height,
-    int nchannels, int nkernels, int kernel_order) {
-   int h, w, x, y, c, m, index;
-   //float value;
-
-    // initialize the output matrix to zero
-
-    
-    __m128 tmp = _mm_setzero_ps();
-    for (m = 0; m < nkernels; m++) {
-        for (h = 0; h < height; h++) {
-            for (w = 0; w < width; w+=4) {
-                _mm_store_ps(&(output[m][h][w]),tmp);
-            }
-        }
-    }
-
-    DEBUGGING(fprintf(stderr, "w=%d, h=%d, c=%d\n", w, h, c));
-    /*
-    struct sparse_matrix {
-        int nkernels;
-        int nchannels;
-        int non_zeros;
-        int * kernel_starts;
-        float * values;
-        int * channel_numbers;
-};
-
-
-    */
-    // now compute multichannel, multikernel convolution
     float tmp0[4] = {0,0,0,0};
     float tmp1[4] = {0,0,0,0};
     float tmp2[4] = {0,0,0,0};
     float tmp3[4] = {0,0,0,0};
-    __m128 value_v ;
     __m128 mul0 ;
     __m128 mul1 ;
     __m128 mul2 ;
@@ -486,11 +376,19 @@ void team_conv_sparse(float ** * image, struct sparse_matrix ** * kernels,
     __m128 row1 ;
     __m128 row2 ;
     __m128 row3 ;
+    __m128 value_v ;
     struct sparse_matrix * kernel;
+    
     int this_c;
-    #pragma omp parallel for private(x,y,kernel,m,index,this_c,value_v,w,h,tmp0,tmp1,tmp2,tmp3,mul0,mul1,mul2,mul3,row0,row1,row2,row3)
-    for (w = 0; w < width; w++) {
-    for (h = 0; h < height; h++) {
+    int h1;
+    int h2;
+    int h3;
+    int w1;
+    int w2;
+    int w3;
+    #pragma omp parallel for private(w,h,x,y,m,index,tmp0,tmp1,tmp2,tmp3,mul0,mul1,mul2,mul3,row0,row1,row2,row3,value_v,kernel,this_c,w1,w2,w3,h1,h2,h3)
+    for (w = 0; w < width; w+=4) {
+    for (h = 0; h < height; h+=4) {
     for (x = 0; x < kernel_order; x++) {
         for (y = 0; y < kernel_order; y++) {
             kernel = kernels[x][y];
@@ -499,51 +397,67 @@ void team_conv_sparse(float ** * image, struct sparse_matrix ** * kernels,
                     this_c = kernel -> channel_numbers[index];
                     assert((this_c >= 0) && (this_c < nchannels));
                     value_v = _mm_set1_ps(kernel -> values[index]);
+
+
+                    row0 =  _mm_setr_ps(image[w + x][h + y][this_c],image[w + x][h + y+1][this_c],image[w + x][h + y+2][this_c],image[w + x][h + y+3][this_c]);
+                    row1 =  _mm_setr_ps(image[w + x+1][h + y][this_c],image[w + x+1][h + y+1][this_c],image[w + x+1][h + y+2][this_c],image[w + x+1][h + y+3][this_c]);
+                    row2 =  _mm_setr_ps(image[w + x+2][h + y][this_c],image[w + x+2][h + y+1][this_c],image[w + x+2][h + y+2][this_c],image[w + x+2][h + y+3][this_c]);    
+                    row3 =  _mm_setr_ps(image[w + x+3][h + y][this_c],image[w + x+3][h + y+1][this_c],image[w + x+3][h + y+2][this_c],image[w + x+3][h + y+3][this_c]);
+
                     
-                    row0 =  _mm_setr_ps(image[w + x][h + y][this_c],image[w + x+1][h + y][this_c],image[w + x+2][h + y][this_c],image[w + x+3][h + y][this_c]);
-                    /*row1 =  _mm_setr_ps(image[w + x][h + y+1][this_c],image[w + x+1][h + y+1][this_c],image[w + x+2][h + y+1][this_c],image[w + x+3][h + y+1][this_c]);
-                    row2 =  _mm_setr_ps(image[w + x][h + y+2][this_c],image[w + x+1][h + y+2][this_c],image[w + x+2][h + y+2][this_c],image[w + x+3][h + y+2][this_c]);    
-                    row0 =  _mm_setr_ps(image[w + x][h + y+3][this_c],image[w + x+1][h + y+3][this_c],image[w + x+2][h + y+3][this_c],image[w + x+3][h + y+3][this_c]);
-                    */
-                     
+                
                     mul0 = _mm_mul_ps(row0,value_v);
-                    /*
                     mul1 = _mm_mul_ps(row1,value_v);
                     mul2 = _mm_mul_ps(row2,value_v);
                     mul3 = _mm_mul_ps(row3,value_v);
-                    */
+                    
+                    h1 = h+1;
+                    h2 = h+2;
+                    h3 = h+3;
+                    
+                    w1 = w+1;
+                    w2 = w+2;
+                    w3 = w+3;
+
                     _mm_store_ps(&(tmp0[0]),mul0);
                     output[m][h][w] += tmp0[0];
-                    output[m][h][w+1] += tmp0[1];
-                    output[m][h][w+2] += tmp0[2];
-                    output[m][h][w+3] += tmp0[3];
-                    /*
+                    output[m][h1][w] += tmp0[1];
+                    output[m][h2][w] += tmp0[2];
+                    output[m][h3][w] += tmp0[3];
+                    
                     _mm_store_ps(&(tmp1[0]),mul1);
-                    output[m][h+1][w] += tmp1[0];
-                    output[m][h+1][w+1] += tmp1[1];
-                    output[m][h+1][w+2] += tmp1[2];
-                    output[m][h+1][w+3] += tmp1[3];
+                    output[m][h][w1] += tmp1[0];
+                    output[m][h1][w1] += tmp1[1];
+                    output[m][h2][w1] += tmp1[2];
+                    output[m][h3][w1] += tmp1[3];
 
-
+                    
                     _mm_store_ps(&(tmp2[0]),mul2);
-                    output[m][h+2][w] += tmp2[0];
-                    output[m][h+2][w+1] += tmp2[1];
-                    output[m][h+2][w+2] += tmp2[2];
-                    output[m][h+2][w+3] += tmp2[3];
+                    output[m][h][w2] += tmp2[0];
+                    output[m][h1][w2] += tmp2[1];
+                    output[m][h2][w2] += tmp2[2];
+                    output[m][h3][w2] += tmp2[3];
 
                     _mm_store_ps(&(tmp3[0]),mul3);
-                    output[m][h+3][w] += tmp3[0];
-                    output[m][h+3][w+1] += tmp3[1];
-                    output[m][h+3][w+2] += tmp3[2];
-                    output[m][h+3][w+3] += tmp3[3];
-                    */
+                    output[m][h][w3] += tmp3[0];
+                    output[m][h1][w3] += tmp3[1];
+                    output[m][h2][w3] += tmp3[2];
+                    output[m][h3][w3] += tmp3[3];
                 }
             }
         }
    }
 }
     }
-    }
+}
+
+/* the fast version of sparse convolution written by the team */
+void team_conv_sparse(float ** * image, struct sparse_matrix ** * kernels,
+    float ** * output, int width, int height,
+    int nchannels, int nkernels, int kernel_order) {
+    multichannel_conv_sparse(image, kernels, output, width, height,
+        nchannels, nkernels, kernel_order);
+}
 
 int main(int argc, char ** argv) {
     //float image[W][H][C];
@@ -589,7 +503,7 @@ int main(int argc, char ** argv) {
     assert(nkernels >= 1);
     assert(nz_ratio >= 1);
 
-     /* allocate the matrices */
+    /* allocate the matrices */
     image = gen_random_3d_matrix(width + kernel_order, height + kernel_order,
         nchannels, 1); // nz_ratio == 1, ie no sparsity
     kernels = gen_random_4d_matrix(kernel_order, kernel_order, nkernels, nchannels, nz_ratio);
