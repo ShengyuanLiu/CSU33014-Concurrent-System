@@ -402,7 +402,7 @@ void multichannel_conv_sparse(float ** * image, struct sparse_matrix ** * kernel
     int w5;
     int w6;
     int w7;
-    #pragma omp parallel for private(w,h,x,y,m,index,tmp0,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,mul0,mul1,mul2,mul3,mul4,mul5,mul6,mul7,row0,row1,row2,row3,row4,row5,row6,row7,value_v,kernel,this_c,w1,w2,w3,w4,w5,w6,w7,h1,h2,h3)
+    #pragma omp parallel for if(width>32) private(w,h,x,y,m,index,tmp0,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,mul0,mul1,mul2,mul3,mul4,mul5,mul6,mul7,row0,row1,row2,row3,row4,row5,row6,row7,value_v,kernel,this_c,w1,w2,w3,w4,w5,w6,w7,h1,h2,h3)
     for (w = 0; w < width; w+=8) {
     for (h = 0; h < height; h+=4) {
     for (x = 0; x < kernel_order; x++) {
@@ -438,7 +438,7 @@ void multichannel_conv_sparse(float ** * image, struct sparse_matrix ** * kernel
                     h1 = h+1;
                     h2 = h+2;
                     h3 = h+3;
-                    
+
                     w1 = w+1;
                     w2 = w+2;
                     w3 = w+3;
